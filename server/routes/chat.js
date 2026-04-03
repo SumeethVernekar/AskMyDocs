@@ -1,11 +1,11 @@
 import express from 'express'
-import OpenAI from 'openai'
-import { protect } from '../lib/auth.js'
-import { embedText } from '../lib/embeddings.js'
-import { searchChunks } from '../lib/vectorSearch.js'
-import Document from '../models/Document.js'
+import OpenAI  from 'openai'
+import { protect }       from '../lib/auth.js'
+import { embedText }     from '../lib/embeddings.js'
+import { searchChunks }  from '../lib/vectorSearch.js'
+import Document     from '../models/Document.js'
 import Conversation from '../models/Conversation.js'
-import Message from '../models/Message.js'
+import Message      from '../models/Message.js'
 
 const router = express.Router()
 
@@ -29,6 +29,7 @@ router.post('/', protect, async (req, res) => {
     if (!doc)                   return res.status(404).json({ error: 'Document not found' })
     if (doc.status !== 'ready') return res.status(400).json({ error: 'Document is still processing' })
 
+    // Get or create conversation
     let conv
     if (conversationId) {
       conv = await Conversation.findOne({ _id: conversationId, userId: req.user._id })
@@ -43,6 +44,7 @@ router.post('/', protect, async (req, res) => {
 
     await Message.create({ conversationId: conv._id, role: 'user', content: question })
 
+    // Embed question locally and search
     const queryVec       = await embedText(question)
     const relevantChunks = await searchChunks(documentId, queryVec, 5)
 
@@ -54,10 +56,13 @@ router.post('/', protect, async (req, res) => {
       .map(c => `[Page ${c.pageNumber}]: ${c.content}`)
       .join('\n\n---\n\n')
 
+    // Get history
     const history = await Message.find({ conversationId: conv._id })
       .sort({ createdAt: 1 }).limit(10).lean()
 
-    const messages = history.slice(0, -1).map(m => ({ role: m.role, content: m.content }))
+    const messages = history
+      .slice(0, -1)
+      .map(m => ({ role: m.role, content: m.content }))
     messages.push({ role: 'user', content: question })
 
     const systemPrompt = `You are a helpful assistant that answers questions about documents.
@@ -68,27 +73,22 @@ ${context}
 RULES:
 - Answer ONLY using the context above.
 - Always cite the page number for every fact, e.g. "(Page 3)".
-- If the answer is not in the context, say: "I couldn't find that information in this document."
+- If the answer is not in the context, say "I couldn't find that information in this document."
 - Be concise and accurate.`
 
-    // Set SSE headers
-    res.setHeader('Content-Type',  'text/event-stream')
-    res.setHeader('Cache-Control', 'no-cache')
-    res.setHeader('Connection',    'keep-alive')
-    res.setHeader('X-Accel-Buffering', 'no')
+    // SSE headers
+    res.setHeader('Content-Type',       'text/event-stream')
+    res.setHeader('Cache-Control',      'no-cache')
+    res.setHeader('Connection',         'keep-alive')
+    res.setHeader('X-Accel-Buffering',  'no')
     res.flushHeaders()
 
-    // Keep connection alive with heartbeat
+    // Heartbeat to keep connection alive
     const heartbeat = setInterval(() => {
-      if (!res.writableEnded) {
-        res.write(': ping\n\n')
-      }
-    }, 15000)
+      if (!res.writableEnded) res.write(': ping\n\n')
+    }, 10000)
 
-    // Handle client disconnect
-    req.on('close', () => {
-      clearInterval(heartbeat)
-    })
+    req.on('close', () => clearInterval(heartbeat))
 
     res.write(`data: ${JSON.stringify({ type: 'meta', conversationId: conv._id })}\n\n`)
 
@@ -96,10 +96,10 @@ RULES:
 
     try {
       const stream = await openai.chat.completions.create({
-        model:       process.env.OPENROUTER_MODEL || "openrouter/free",
-        stream:      true,
-        max_tokens:  1024,
-        messages: [{ role: 'system', content: systemPrompt }, ...messages],
+        model:      process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free',
+        stream:     true,
+        max_tokens: 1024,
+        messages:   [{ role: 'system', content: systemPrompt }, ...messages],
       })
 
       for await (const chunk of stream) {
@@ -119,7 +119,7 @@ RULES:
 
     clearInterval(heartbeat)
 
-    // Save message even if stream failed partway
+    // Save assistant message
     if (fullText) {
       const citedChunkIds = relevantChunks.map(c => c._id)
       await Message.create({
