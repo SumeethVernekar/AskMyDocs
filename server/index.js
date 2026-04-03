@@ -10,6 +10,9 @@ import documentRoutes     from './routes/documents.js'
 import chatRoutes         from './routes/chat.js'
 import conversationRoutes from './routes/conversations.js'
 
+import { embedText } from './lib/embeddings.js'
+embedText('warmup').catch(() => {})
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app  = express()
 const PORT = process.env.PORT || 5000
