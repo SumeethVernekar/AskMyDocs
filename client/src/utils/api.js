@@ -1,4 +1,5 @@
-const SERVER = 'https://askmydocs-ma48.onrender.com'
+//  Render URL in production
+const SERVER = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 const BASE   = SERVER + '/api'
 
 function getToken() {
@@ -30,30 +31,26 @@ async function request(path, options = {}) {
     return res.json()
   } catch (err) {
     if (err.message === 'Failed to fetch') {
-      throw new Error('Cannot connect to server. Make sure the server is running on http://localhost:5000')
+      throw new Error('Cannot connect to server at ' + SERVER)
     }
     throw err
   }
 }
 
 export const api = {
-  // Auth
   register: (data) => request('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
   login:    (data) => request('/auth/login',    { method: 'POST', body: JSON.stringify(data) }),
   me:       ()     => request('/auth/me'),
 
-  // Documents
   getDocuments:   ()   => request('/documents'),
   getDocument:    (id) => request(`/documents/${id}`),
   deleteDocument: (id) => request(`/documents/${id}`, { method: 'DELETE' }),
   uploadDocument: (formData) => request('/documents/upload', { method: 'POST', body: formData }),
 
-  // Conversations
   getConversations:   (documentId) => request(`/conversations?documentId=${documentId}`),
   getMessages:        (convId)     => request(`/conversations/${convId}/messages`),
   deleteConversation: (id)         => request(`/conversations/${id}`, { method: 'DELETE' }),
 
-  // Chat — direct to server, bypasses Vite proxy
   chatStream: async (body) => {
     try {
       const res = await fetch(`${SERVER}/api/chat`, {
@@ -68,7 +65,7 @@ export const api = {
       return res
     } catch (err) {
       if (err.message === 'Failed to fetch') {
-        throw new Error('Cannot connect to server. Make sure the server is running on http://localhost:5000')
+        throw new Error('Cannot connect to server at ' + SERVER)
       }
       throw err
     }
