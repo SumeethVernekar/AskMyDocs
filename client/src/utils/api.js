@@ -1,4 +1,4 @@
-const SERVER = 'http://localhost:5000'
+const SERVER = 'https://askmydocs-ma48.onrender.com'
 const BASE   = SERVER + '/api'
 
 function getToken() {
