@@ -19,17 +19,15 @@ const PORT       = process.env.PORT || 5000
 // CORS — allow all localhost origins
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (mobile, curl, Postman)
-    // and any localhost origin
-    if (!origin || origin.includes('localhost') || origin.includes('127.0.0.1')) {
+    if (!origin || origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('onrender.com')) {
       callback(null, true)
     } else {
       callback(new Error('Not allowed by CORS'))
     }
   },
-  credentials:    true,
-  methods:        ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type','Authorization'],
 }))
 
 app.use(express.json())
