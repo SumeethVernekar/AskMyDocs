@@ -1,33 +1,41 @@
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
+
 import 'dotenv/config'
-import express from 'express'
-import cors from 'cors'
-import path from 'path'
+import express    from 'express'
+import cors       from 'cors'
+import path       from 'path'
 import { fileURLToPath } from 'url'
-import { connectDB } from './lib/db.js'
+import { connectDB }     from './lib/db.js'
+import { embedText }     from './lib/embeddings.js'
 import authRoutes         from './routes/auth.js'
 import documentRoutes     from './routes/documents.js'
 import chatRoutes         from './routes/chat.js'
 import conversationRoutes from './routes/conversations.js'
 
-import { embedText } from './lib/embeddings.js'
-embedText('warmup').catch(() => {})
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const app  = express()
-const PORT = process.env.PORT || 5000
+const app        = express()
+const PORT       = process.env.PORT || 5000
 
-// Middleware
+// CORS — allow all localhost origins
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173'],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile, curl, Postman)
+    // and any localhost origin
+    if (!origin || origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      callback(null, true)
+    } else {
+      callback(new Error('Not allowed by CORS'))
+    }
+  },
+  credentials:    true,
+  methods:        ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }))
+
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
-// Serve uploaded PDFs from local disk (no S3/R2 needed)
+// Serve uploaded files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
 
 // Routes
@@ -37,15 +45,27 @@ app.use('/api/chat',          chatRoutes)
 app.use('/api/conversations', conversationRoutes)
 
 // Health check
-app.get('/api/health', (req, res) => res.json({ status: 'ok' }))
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    port:   PORT,
+    mongo:  'connected',
+    time:   new Date().toISOString(),
+  })
+})
 
 // Global error handler
 app.use((err, req, res, next) => {
-  console.error(err.stack)
+  console.error('Global error:', err.message)
   res.status(500).json({ error: err.message || 'Internal server error' })
 })
 
-// Start
+// Start server
 connectDB().then(() => {
-  app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`))
+  app.listen(PORT, () => {
+    console.log(`\nServer running on http://localhost:${PORT}`)
+    console.log(`Health check: http://localhost:${PORT}/api/health\n`)
+    // Pre-load embedding model
+    embedText('warmup').catch(() => {})
+  })
 })

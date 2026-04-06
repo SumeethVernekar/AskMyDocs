@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "cd client && npm run dev",
+    "build": "node node_modules/vite/bin/vite.js build",
     "preview": "vite preview"
   },
   "dependencies": {

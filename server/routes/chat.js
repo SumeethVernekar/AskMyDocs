@@ -1,22 +1,33 @@
 import express from 'express'
 import OpenAI  from 'openai'
-import { protect }       from '../lib/auth.js'
-import { embedText }     from '../lib/embeddings.js'
-import { searchChunks }  from '../lib/vectorSearch.js'
+import { protect }      from '../lib/auth.js'
+import { embedText }    from '../lib/embeddings.js'
+import { searchChunks } from '../lib/vectorSearch.js'
 import Document     from '../models/Document.js'
 import Conversation from '../models/Conversation.js'
 import Message      from '../models/Message.js'
 
 const router = express.Router()
 
-const openai = new OpenAI({
-  apiKey:  process.env.OPENROUTER_API_KEY,
-  baseURL: 'https://openrouter.ai/api/v1',
-  defaultHeaders: {
-    'HTTP-Referer': 'http://localhost:5173',
-    'X-Title':      'AskMyDocs',
-  },
-})
+function getOpenAIClient() {
+  const key = process.env.OPENROUTER_API_KEY
+  console.log('Using key:', key?.slice(0, 25) + '...')
+  console.log('Key length:', key?.length)
+
+  if (!key || key.includes('your-key') || key.length < 20) {
+    throw new Error('OPENROUTER_API_KEY missing or invalid in .env')
+  }
+
+  return new OpenAI({
+    apiKey:  key,
+    baseURL: 'https://openrouter.ai/api/v1',
+    defaultHeaders: {
+      'HTTP-Referer':    'http://localhost:5173',
+      'X-Title':         'AskMyDocs',
+      'Authorization':   `Bearer ${key}`,
+    },
+  })
+}
 
 router.post('/', protect, async (req, res) => {
   try {
@@ -29,7 +40,6 @@ router.post('/', protect, async (req, res) => {
     if (!doc)                   return res.status(404).json({ error: 'Document not found' })
     if (doc.status !== 'ready') return res.status(400).json({ error: 'Document is still processing' })
 
-    // Get or create conversation
     let conv
     if (conversationId) {
       conv = await Conversation.findOne({ _id: conversationId, userId: req.user._id })
@@ -44,19 +54,17 @@ router.post('/', protect, async (req, res) => {
 
     await Message.create({ conversationId: conv._id, role: 'user', content: question })
 
-    // Embed question locally and search
     const queryVec       = await embedText(question)
     const relevantChunks = await searchChunks(documentId, queryVec, 5)
 
     if (relevantChunks.length === 0) {
-      return res.status(400).json({ error: 'No relevant content found' })
+      return res.status(400).json({ error: 'No relevant content found in this document' })
     }
 
     const context = relevantChunks
       .map(c => `[Page ${c.pageNumber}]: ${c.content}`)
       .join('\n\n---\n\n')
 
-    // Get history
     const history = await Message.find({ conversationId: conv._id })
       .sort({ createdAt: 1 }).limit(10).lean()
 
@@ -77,13 +85,12 @@ RULES:
 - Be concise and accurate.`
 
     // SSE headers
-    res.setHeader('Content-Type',       'text/event-stream')
-    res.setHeader('Cache-Control',      'no-cache')
-    res.setHeader('Connection',         'keep-alive')
-    res.setHeader('X-Accel-Buffering',  'no')
+    res.setHeader('Content-Type',      'text/event-stream')
+    res.setHeader('Cache-Control',     'no-cache')
+    res.setHeader('Connection',        'keep-alive')
+    res.setHeader('X-Accel-Buffering', 'no')
     res.flushHeaders()
 
-    // Heartbeat to keep connection alive
     const heartbeat = setInterval(() => {
       if (!res.writableEnded) res.write(': ping\n\n')
     }, 10000)
@@ -95,11 +102,16 @@ RULES:
     let fullText = ''
 
     try {
+      const openai = getOpenAIClient()
+      const model  = process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free'
+
+      console.log('Using model:', model)
+
       const stream = await openai.chat.completions.create({
-        model:      process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free',
+        model,
         stream:     true,
         max_tokens: 1024,
-        messages:   [{ role: 'system', content: systemPrompt }, ...messages],
+        messages: [{ role: 'system', content: systemPrompt }, ...messages],
       })
 
       for await (const chunk of stream) {
@@ -110,16 +122,29 @@ RULES:
           res.write(`data: ${JSON.stringify({ type: 'text', text })}\n\n`)
         }
       }
+
     } catch (streamErr) {
       console.error('Stream error:', streamErr.message)
+
+      // Give a clear error message to the client
+      let errMsg = streamErr.message
+      if (streamErr.status === 401) {
+        errMsg = 'OpenRouter API key is invalid or expired. Please check OPENROUTER_API_KEY in server/.env'
+      } else if (streamErr.status === 402) {
+        errMsg = 'OpenRouter account has no credits. Add credits at openrouter.ai or use a free model.'
+      } else if (streamErr.status === 404) {
+        errMsg = `Model not found: ${process.env.OPENROUTER_MODEL}. Change OPENROUTER_MODEL in .env`
+      } else if (streamErr.status === 429) {
+        errMsg = 'Rate limit hit. Wait 1 minute and try again.'
+      }
+
       if (!res.writableEnded) {
-        res.write(`data: ${JSON.stringify({ type: 'error', error: streamErr.message })}\n\n`)
+        res.write(`data: ${JSON.stringify({ type: 'error', error: errMsg })}\n\n`)
       }
     }
 
     clearInterval(heartbeat)
 
-    // Save assistant message
     if (fullText) {
       const citedChunkIds = relevantChunks.map(c => c._id)
       await Message.create({
@@ -138,7 +163,7 @@ RULES:
   } catch (err) {
     console.error('Chat error:', err.message)
     if (!res.headersSent) {
-      res.status(500).json({ error: err.message || 'Chat failed' })
+      res.status(500).json({ error: err.message })
     } else if (!res.writableEnded) {
       res.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`)
       res.end()

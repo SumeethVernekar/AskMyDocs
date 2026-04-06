@@ -1,34 +1,43 @@
-import OpenAI from 'openai'
+import { pipeline, env } from '@xenova/transformers'
 
-const openai = new OpenAI({
-  apiKey:  process.env.OPENROUTER_API_KEY,
-  baseURL: 'https://openrouter.ai/api/v1',
-  defaultHeaders: {
-    'HTTP-Referer': 'http://localhost:5173',
-    'X-Title':      'AskMyDocs',
-  },
-})
+env.cacheDir         = './models'
+env.allowLocalModels = false
 
-const MODEL = 'openai/text-embedding-3-small'
-const BATCH = 20
+let embedder = null
 
-export async function embedText(text) {
-  const res = await openai.embeddings.create({
-    model: MODEL,
-    input: text.replace(/\n/g, ' ').slice(0, 8000),
-  })
-  return res.data[0].embedding
+async function getEmbedder() {
+  if (!embedder) {
+    console.log('Loading embedding model...')
+    embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2')
+    console.log('Embedding model ready!')
+  }
+  return embedder
 }
 
+export async function embedText(text) {
+  const embed  = await getEmbedder()
+  const clean  = text.replace(/\n/g, ' ').trim().slice(0, 512)
+  const output = await embed(clean, { pooling: 'mean', normalize: true })
+  return Array.from(output.data)
+}
+
+// Process all texts in one batch call — much faster than one by one
 export async function embedBatch(texts) {
+  const embed   = await getEmbedder()
+  const cleaned = texts.map(t => t.replace(/\n/g, ' ').trim().slice(0, 512))
+
+  console.log(`Embedding ${cleaned.length} chunks in one batch...`)
+
+  const output = await embed(cleaned, { pooling: 'mean', normalize: true })
+
+  // output.data is a flat Float32Array: [vec0, vec1, vec2, ...]
+  const dims    = output.data.length / cleaned.length
   const results = []
-  for (let i = 0; i < texts.length; i += BATCH) {
-    const batch = texts
-      .slice(i, i + BATCH)
-      .map(t => t.replace(/\n/g, ' ').slice(0, 8000))
-    const res = await openai.embeddings.create({ model: MODEL, input: batch })
-    results.push(...res.data.map(d => d.embedding))
-    console.log(`Embedded ${Math.min(i + BATCH, texts.length)} / ${texts.length} chunks`)
+
+  for (let i = 0; i < cleaned.length; i++) {
+    results.push(Array.from(output.data.slice(i * dims, (i + 1) * dims)))
   }
+
+  console.log(`Done — ${results.length} embeddings created`)
   return results
 }
