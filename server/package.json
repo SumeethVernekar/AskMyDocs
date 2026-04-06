@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "build":"echo build complite ",
     "dev": "node --watch index.js",
     "start": "node index.js"
   },
