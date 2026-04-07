@@ -1,5 +1,5 @@
  
-const SERVER = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+const SERVER = import.meta.env.VITE_API_URL || 'https://localhost:5000'
 const BASE   = SERVER + '/api'
 
 function getToken() {
