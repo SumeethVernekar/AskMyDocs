@@ -19,7 +19,7 @@ const PORT       = process.env.PORT || 5000
 // CORS — allow all localhost origins
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('onrender.com')) {
+    if (!origin || origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('https://askmydocs-ma48.onrender.com')) {
       callback(null, true)
     } else {
       callback(new Error('Not allowed by CORS'))
@@ -51,6 +51,12 @@ app.get('/api/health', (req, res) => {
     time:   new Date().toISOString(),
   })
 })
+app.get('/', (req, res) => {
+  res.send(
+    "Backend it running"
+  )
+})
+
 
 // Global error handler
 app.use((err, req, res, next) => {
