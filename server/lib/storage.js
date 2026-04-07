@@ -15,7 +15,7 @@ export async function uploadFile(buffer, originalName, mimeType) {
   const filePath = path.join(UPLOAD_DIR, key)
   fs.writeFileSync(filePath, buffer)
   // URL served by Express static middleware
-  const url = `http://localhost:${process.env.PORT || 5000}/uploads/${key}`
+  const url = `https://localhost:${process.env.PORT || 5000}/uploads/${key}`
   return { key, url }
 }
 
