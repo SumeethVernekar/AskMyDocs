@@ -1,5 +1,4 @@
- 
-const SERVER = import.meta.env.VITE_API_URL || 'https://localhost:5000'
+const SERVER = 'https://askmydocs-ma48.onrender.com'
 const BASE   = SERVER + '/api'
 
 function getToken() {
@@ -45,7 +44,7 @@ export const api = {
   getDocuments:   ()   => request('/documents'),
   getDocument:    (id) => request(`/documents/${id}`),
   deleteDocument: (id) => request(`/documents/${id}`, { method: 'DELETE' }),
-  uploadDocument: (formData) => request('/documents/upload', { method: 'POST', body: formData }),
+  uploadDocument: (fd) => request('/documents/upload', { method: 'POST', body: fd }),
 
   getConversations:   (documentId) => request(`/conversations?documentId=${documentId}`),
   getMessages:        (convId)     => request(`/conversations/${convId}/messages`),

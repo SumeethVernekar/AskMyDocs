@@ -67,8 +67,8 @@ app.use((err, req, res, next) => {
 // Start server
 connectDB().then(() => {
   app.listen(PORT, () => {
-    console.log(`\nServer running on https://localhost:${PORT}`)
-    console.log(`Health check: https://localhost:${PORT}/api/health\n`)
+    console.log(`\nServer running on http://localhost:${PORT}`)
+    console.log(`Health check: http://localhost:${PORT}/api/health\n`)
     // Pre-load embedding model
     embedText('warmup').catch(() => {})
   })
