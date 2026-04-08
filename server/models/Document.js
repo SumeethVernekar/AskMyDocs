@@ -9,6 +9,8 @@ const documentSchema = new mongoose.Schema({
   pageCount:    { type: Number },
   status:       { type: String, enum: ['pending','processing','ready','error'], default: 'pending' },
   errorMessage: { type: String },
+  progress:     { type: Number, default: 0 },   // 0-100 percentage
+  progressMsg:  { type: String, default: '' },  // human readable step
 }, { timestamps: true })
 
 documentSchema.index({ userId: 1, createdAt: -1 })
