@@ -1,4 +1,4 @@
-const CHUNK_SIZE = 300  // bigger chunks = fewer chunks = faster
+const CHUNK_SIZE = 500   // words per chunk
 const OVERLAP    = 30
 
 function cleanText(text) {
@@ -9,32 +9,36 @@ function cleanText(text) {
 }
 
 export function buildChunks(pdfData) {
-  // Join all pages into one text, split into chunks
-  // Avoids tiny per-page chunks that slow down embedding
-  const fullText = pdfData.text
-    .split(/\f/)
-    .map((page, i) => ({ page: i + 1, text: cleanText(page) }))
-    .filter(p => p.text.length > 20)
+  const fullText = cleanText(pdfData.text)
+  const words    = fullText.split(' ').filter(Boolean)
 
-  const allChunks = []
-  let   chunkIndex = 0
+  // Use page breaks to track page numbers per word
+  const pages    = pdfData.text.split(/\f/)
+  const pageWordCounts = pages.map(p => p.split(/\s+/).filter(Boolean).length)
 
-  for (const { page, text } of fullText) {
-    const words = text.split(' ').filter(Boolean)
-    let i = 0
-    while (i < words.length) {
-      const slice = words.slice(i, i + CHUNK_SIZE)
-      if (slice.length > 10) {
-        allChunks.push({
-          content:    slice.join(' '),
-          pageNumber: page,
-          chunkIndex: chunkIndex++,
-          tokenCount: Math.round(slice.length * 1.3),
-        })
-      }
-      i += CHUNK_SIZE - OVERLAP
+  const chunks   = []
+  let   wordPos  = 0
+  let   chunkIdx = 0
+
+  for (let i = 0; i < words.length; i += CHUNK_SIZE - OVERLAP) {
+    const slice = words.slice(i, i + CHUNK_SIZE)
+    if (slice.length < 5) break
+
+    // Estimate page number from word position
+    let cumulative = 0
+    let pageNum    = 1
+    for (let p = 0; p < pageWordCounts.length; p++) {
+      cumulative += pageWordCounts[p]
+      if (i < cumulative) { pageNum = p + 1; break }
     }
+
+    chunks.push({
+      content:    slice.join(' '),
+      pageNumber: pageNum,
+      chunkIndex: chunkIdx++,
+      tokenCount: Math.round(slice.length * 1.3),
+    })
   }
 
-  return allChunks
+  return chunks
 }
