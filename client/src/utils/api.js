@@ -1,4 +1,4 @@
-const SERVER = 'https://askmydocs-ma48.onrender.com'
+const SERVER = 'https://askmydocs-b8b7.onrender.com'
 const BASE   = SERVER + '/api'
 
 function getToken() {
