@@ -18,7 +18,7 @@ const PORT       = process.env.PORT || 5000
 // CORS — allow all localhost origins
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('https://ask-my-docs-nine.vercel.app')) {
+    if (!origin || origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('https://ask-my-docs-ten.vercel.app')) {
       callback(null, true)
     } else {
       callback(new Error('Not allowed by CORS'))
