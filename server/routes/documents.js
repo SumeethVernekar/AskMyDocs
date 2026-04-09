@@ -1,16 +1,16 @@
 import express from 'express'
 import multer  from 'multer'
 import pdf     from 'pdf-parse/lib/pdf-parse.js'
-import { protect }           from '../lib/auth.js'
+import { protect }                from '../lib/auth.js'
 import { uploadFile, deleteFile } from '../lib/storage.js'
-import { buildChunks }       from '../lib/chunker.js'
-import { embedBatch, embedText } from '../lib/embeddings.js'
-import Document      from '../models/Document.js'
-import Chunk         from '../models/Chunk.js'
-import Conversation  from '../models/Conversation.js'
+import { buildChunks }            from '../lib/chunker.js'
+import { embedBatch }             from '../lib/embeddings.js'
+import Document     from '../models/Document.js'
+import Chunk        from '../models/Chunk.js'
+import Conversation from '../models/Conversation.js'
 
-const router  = express.Router()
-const upload  = multer({
+const router = express.Router()
+const upload = multer({
   storage: multer.memoryStorage(),
   limits:  { fileSize: 20 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
@@ -18,6 +18,91 @@ const upload  = multer({
     else cb(new Error('Only PDF files allowed'))
   },
 })
+
+async function updateProgress(docId, progress, progressMsg) {
+  await Document.findByIdAndUpdate(docId, { progress, progressMsg })
+  console.log(`[${docId}] ${progress}% — ${progressMsg}`)
+}
+
+async function processDocument(docId, pdfBuffer) {
+  try {
+    await updateProgress(docId, 5, 'Extracting text from PDF...')
+
+    // Step 1: Extract text
+    const pdfData = await pdf(pdfBuffer)
+
+    if (!pdfData.text?.trim()) {
+      throw new Error('No extractable text. PDF may be a scanned image.')
+    }
+
+    console.log(`Pages: ${pdfData.numpages} | Chars: ${pdfData.text.length}`)
+    await updateProgress(docId, 20, `Extracted ${pdfData.numpages} pages`)
+
+    // Step 2: Build chunks
+    const chunks = buildChunks(pdfData)
+    console.log(`Chunks: ${chunks.length}`)
+
+    if (chunks.length === 0) throw new Error('No text chunks produced')
+
+    await updateProgress(docId, 30, `Created ${chunks.length} chunks. Embedding...`)
+
+    // Step 3: Delete old chunks
+    await Chunk.deleteMany({ documentId: docId })
+
+    // Step 4: Embed chunks one by one and save in batches
+    const SAVE_BATCH   = 50
+    const totalChunks  = chunks.length
+    let   chunkBuffer  = []
+
+    for (let i = 0; i < totalChunks; i++) {
+      // Embed single chunk
+      const clean  = chunks[i].content.replace(/\n/g, ' ').trim().slice(0, 512)
+      const { getEmbedder } = await import('../lib/embeddings.js')
+      const embed  = await getEmbedder()
+      const output = await embed(clean, { pooling: 'mean', normalize: true })
+      const vector = Array.from(output.data)
+
+      chunkBuffer.push({
+        documentId: docId,
+        content:    chunks[i].content,
+        embedding:  vector,
+        pageNumber: chunks[i].pageNumber,
+        chunkIndex: chunks[i].chunkIndex,
+        tokenCount: chunks[i].tokenCount,
+      })
+
+      // Save batch to DB when buffer is full or last chunk
+      if (chunkBuffer.length >= SAVE_BATCH || i === totalChunks - 1) {
+        await Chunk.insertMany(chunkBuffer)
+        chunkBuffer = []
+        console.log(`Saved ${Math.min(i + 1, totalChunks)}/${totalChunks} chunks`)
+      }
+
+      // Update progress: 30% to 90% during embedding
+      const pct = 30 + Math.round(((i + 1) / totalChunks) * 60)
+      await updateProgress(docId, pct, `Processing chunk ${i + 1} of ${totalChunks}...`)
+    }
+
+    // Step 5: Mark ready
+    await Document.findByIdAndUpdate(docId, {
+      status:      'ready',
+      pageCount:   pdfData.numpages,
+      progress:    100,
+      progressMsg: 'Ready',
+    })
+
+    console.log(`\nDocument ${docId} READY — ${totalChunks} chunks\n`)
+
+  } catch (err) {
+    console.error(`Processing FAILED [${docId}]:`, err.message)
+    await Document.findByIdAndUpdate(docId, {
+      status:       'error',
+      errorMessage: err.message,
+      progress:     0,
+      progressMsg:  '',
+    })
+  }
+}
 
 // GET /api/documents
 router.get('/', protect, async (req, res) => {
@@ -52,19 +137,23 @@ router.post('/upload', protect, upload.single('file'), async (req, res) => {
     )
 
     const doc = await Document.create({
-      userId:   req.user._id,
-      title:    req.file.originalname.replace(/\.pdf$/i, ''),
-      fileUrl:  url,
-      fileKey:  key,
-      fileSize: req.file.size,
-      status:   'pending',
+      userId:      req.user._id,
+      title:       req.file.originalname.replace(/\.pdf$/i, ''),
+      fileUrl:     url,
+      fileKey:     key,
+      fileSize:    req.file.size,
+      status:      'processing',
+      progress:    0,
+      progressMsg: 'Starting...',
     })
 
-    // Process immediately in background
+    // Respond immediately, process in background
+    res.status(201).json({ document: doc })
+
+    // Start processing after response is sent
     const bufferCopy = Buffer.from(req.file.buffer)
     setImmediate(() => processDocument(doc._id, bufferCopy))
 
-    res.status(201).json({ document: doc })
   } catch (err) {
     console.error('Upload error:', err)
     res.status(500).json({ error: err.message || 'Upload failed' })
@@ -82,62 +171,8 @@ router.delete('/:id', protect, async (req, res) => {
     await Document.findByIdAndDelete(doc._id)
     res.json({ success: true })
   } catch (err) {
-    res.status(500).json({ error: 'Failed to delete document' })
+    res.status(500).json({ error: 'Failed to delete' })
   }
 })
-
-// Background processing — no HTTP calls, runs directly in process
-async function processDocument(docId, pdfBuffer) {
-  try {
-    console.log('\n--- Processing started:', docId)
-    await Document.findByIdAndUpdate(docId, { status: 'processing' })
-
-    // Extract text
-    const pdfData = await pdf(pdfBuffer)
-    console.log('Pages:', pdfData.numpages, '| Text length:', pdfData.text?.length)
-
-    if (!pdfData.text?.trim()) {
-      throw new Error('No extractable text found. PDF may be a scanned image.')
-    }
-
-    // Build chunks
-    const chunks = buildChunks(pdfData)
-    console.log('Chunks created:', chunks.length)
-    if (chunks.length === 0) throw new Error('No text chunks produced')
-
-    // Delete old chunks
-    await Chunk.deleteMany({ documentId: docId })
-
-    // Embed all chunks locally
-    const texts      = chunks.map(c => c.content)
-    const embeddings = await embedBatch(texts)
-
-    // Save to MongoDB
-    const chunkDocs = chunks.map((chunk, i) => ({
-      documentId: docId,
-      content:    chunk.content,
-      embedding:  embeddings[i],
-      pageNumber: chunk.pageNumber,
-      chunkIndex: chunk.chunkIndex,
-      tokenCount: chunk.tokenCount,
-    }))
-
-    await Chunk.insertMany(chunkDocs)
-    console.log('Chunks saved:', chunkDocs.length)
-
-    await Document.findByIdAndUpdate(docId, {
-      status:    'ready',
-      pageCount: pdfData.numpages,
-    })
-
-    console.log('Document READY:', docId, '\n')
-  } catch (err) {
-    console.error('Processing FAILED:', err.message)
-    await Document.findByIdAndUpdate(docId, {
-      status:       'error',
-      errorMessage: err.message,
-    })
-  }
-}
 
 export default router

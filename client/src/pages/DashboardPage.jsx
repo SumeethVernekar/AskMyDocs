@@ -20,7 +20,7 @@ function ProgressBar({ progress, message }) {
         <span>{message || 'Processing...'}</span>
         <span>{progress || 0}%</span>
       </div>
-      <div className="w-full bg-slate-100 rounded-full h-1.5">
+      <div className="w-full bg-slate-400 rounded-full h-1.5">
         <div
           className="bg-blue-500 h-1.5 rounded-full transition-all duration-500"
           style={{ width: `${progress || 0}%` }}
@@ -36,7 +36,7 @@ function DocCard({ doc, onDelete }) {
   const isError      = doc.status === 'error'
 
   return (
-    <div className="bg-white border border-slate-100 rounded-2xl px-5 py-4 hover:border-blue-200 hover:shadow-sm transition-all group">
+    <div className="bg-slate-500 border border-slate-100 rounded-2xl px-5 py-4 hover:border-blue-200 hover:shadow-sm transition-all group">
       <div className="flex items-center gap-4">
         <div className="text-2xl flex-shrink-0">📄</div>
 
@@ -181,8 +181,8 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between">
+    <div className="min-h-screen bg-slate-950">
+      <header className="bg-slate-900 border-b border-slate-100 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">A</div>
           <span className="font-bold text-xl text-blue-900">AskMyDocs</span>
@@ -190,7 +190,7 @@ export default function DashboardPage() {
         <div className="flex items-center gap-4">
           <span className="text-sm text-slate-600 hidden sm:block">{user?.name}</span>
           <button onClick={() => { logout(); navigate('/') }}
-            className="text-sm text-slate-500 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+            className="text-sm text-slate-400 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-950 transition-colors">
             Sign out
           </button>
         </div>
@@ -199,8 +199,8 @@ export default function DashboardPage() {
       <main className="max-w-4xl mx-auto px-6 py-10">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">My Documents</h1>
-            <p className="text-slate-500 text-sm mt-0.5">{docs.length} document{docs.length !== 1 ? 's' : ''}</p>
+            <h1 className="text-2xl font-bold text-slate-300">My Documents</h1>
+            <p className="text-slate-400 text-sm mt-0.5">{docs.length} document{docs.length !== 1 ? 's' : ''}</p>
           </div>
           <button onClick={() => fileRef.current?.click()}
             className="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2">
@@ -213,7 +213,7 @@ export default function DashboardPage() {
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 text-sm mb-6 flex items-center gap-2">
             ⚠ {error}
-            <button onClick={() => setError('')} className="ml-auto">✕</button>
+            <button onClick={() => setError('')} className="ml-auto text-red-400 hover:text-red-600" >✕</button>
           </div>
         )}
 
@@ -233,7 +233,7 @@ export default function DashboardPage() {
           ) : (
             <>
               <div className="text-4xl mb-3">📄</div>
-              <p className="text-slate-600 font-medium">Drop a PDF here, or click to browse</p>
+              <p className="text-slate-400 font-medium">Drop a PDF here, or click to browse</p>
               <p className="text-slate-400 text-sm mt-1">Maximum 20 MB · Text-based PDFs only</p>
             </>
           )}
@@ -242,7 +242,7 @@ export default function DashboardPage() {
         {/* Document list */}
         {loading ? (
           <div className="flex justify-center py-16">
-            <div className="w-8 h-8 border-[3px] border-slate-200 border-t-blue-600 rounded-full spin"/>
+            <div className="w-8 h-8 border-[3px] border-slate-600 border-t-blue-600 rounded-full spin"/>
           </div>
         ) : docs.length === 0 ? (
           <div className="text-center py-16 text-slate-400">
