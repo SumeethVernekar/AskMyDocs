@@ -1,25 +1,15 @@
 const SERVER = 'https://askmydocs-b8b7.onrender.com'
 const BASE   = SERVER + '/api'
 
-function getToken() {
-  return localStorage.getItem('token')
-}
-
-function authHeaders(extra = {}) {
-  const token = getToken()
-  return {
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...extra,
-  }
-}
-
+// No more localStorage tokens — cookies are set automatically by browser
 async function request(path, options = {}) {
   try {
     const isFormData = options.body instanceof FormData
     const res = await fetch(BASE + path, {
       ...options,
+      credentials: 'include',  // sends cookies automatically
       headers: {
-        ...authHeaders(isFormData ? {} : { 'Content-Type': 'application/json' }),
+        ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
         ...options.headers,
       },
     })
@@ -30,7 +20,7 @@ async function request(path, options = {}) {
     return res.json()
   } catch (err) {
     if (err.message === 'Failed to fetch') {
-      throw new Error('Cannot connect to server at ' + SERVER)
+      throw new Error('Cannot connect to server. Please check your connection.')
     }
     throw err
   }
@@ -39,6 +29,7 @@ async function request(path, options = {}) {
 export const api = {
   register: (data) => request('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
   login:    (data) => request('/auth/login',    { method: 'POST', body: JSON.stringify(data) }),
+  logout:   ()     => request('/auth/logout',   { method: 'POST' }),
   me:       ()     => request('/auth/me'),
 
   getDocuments:   ()   => request('/documents'),
@@ -53,9 +44,10 @@ export const api = {
   chatStream: async (body) => {
     try {
       const res = await fetch(`${SERVER}/api/chat`, {
-        method:  'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body:    JSON.stringify(body),
+        method:      'POST',
+        credentials: 'include',  // sends cookies automatically
+        headers:     { 'Content-Type': 'application/json' },
+        body:        JSON.stringify(body),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: `Server error ${res.status}` }))
@@ -64,7 +56,7 @@ export const api = {
       return res
     } catch (err) {
       if (err.message === 'Failed to fetch') {
-        throw new Error('Cannot connect to server at ' + SERVER)
+        throw new Error('Cannot connect to server. Please check your connection.')
       }
       throw err
     }
