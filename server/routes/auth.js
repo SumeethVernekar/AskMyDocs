@@ -1,6 +1,6 @@
 import express from 'express'
 import User from '../models/User.js'
-import { signToken, protect } from '../lib/auth.js'
+import { signToken, setTokenCookie, clearTokenCookie, protect } from '../lib/auth.js'
 
 const router = express.Router()
 
@@ -20,7 +20,11 @@ router.post('/register', async (req, res) => {
     }
     const user  = await User.create({ name, email, password })
     const token = signToken(user._id)
-    res.status(201).json({ token, user })
+
+    // Set HTTP-only cookie
+    setTokenCookie(res, token)
+
+    res.status(201).json({ user })
   } catch (err) {
     console.error('Register error:', err)
     res.status(500).json({ error: 'Registration failed' })
@@ -39,11 +43,21 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password' })
     }
     const token = signToken(user._id)
-    res.json({ token, user })
+
+    // Set HTTP-only cookie
+    setTokenCookie(res, token)
+
+    res.json({ user })
   } catch (err) {
     console.error('Login error:', err)
     res.status(500).json({ error: 'Login failed' })
   }
+})
+
+// POST /api/auth/logout
+router.post('/logout', (req, res) => {
+  clearTokenCookie(res)
+  res.json({ success: true })
 })
 
 // GET /api/auth/me
