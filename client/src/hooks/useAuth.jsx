@@ -7,10 +7,13 @@ export function AuthProvider({ children }) {
   const [user,    setUser]    = useState(null)
   const [loading, setLoading] = useState(true)
 
-  // On every page load/refresh — check if cookie session exists
   useEffect(() => {
+    // Check cookie session on every page load including refresh
     api.me()
-      .then(data => setUser(data.user))
+      .then(data => {
+        if (data?.user) setUser(data.user)
+        else setUser(null)
+      })
       .catch(() => setUser(null))
       .finally(() => setLoading(false))
   }, [])
