@@ -1,5 +1,5 @@
-const SERVER = 'https://askmydocs-b8b7.onrender.com'
-const BASE   = SERVER + '/api'
+const SERVER = import.meta.env.VITE_API_URL || ''
+const BASE   = SERVER ? `${SERVER}/api` : '/api'
 
 // No more localStorage tokens — cookies are set automatically by browser
 async function request(path, options = {}) {
