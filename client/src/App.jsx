@@ -27,13 +27,13 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/login"    element={<PublicRoute><LoginPage /></PublicRoute>} />
-          <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
+        <Routes> 
+          <Route path="/" element={<LandingPage />} /> 
+          <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} /> 
+          <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} /> 
           <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
-          <Route path="/chat/:docId" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="/chat/:docId" element={<PrivateRoute><ChatPage /></PrivateRoute>} /> 
+          <Route path="*" element={<Navigate to="/" replace />} /> 
         </Routes>
       </BrowserRouter>
     </AuthProvider>
