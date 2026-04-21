@@ -31,8 +31,8 @@ export default function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/login"    element={<PublicRoute><LoginPage /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
-          <Route path="https://askmydocs-b8b7.onrender.com/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
-          <Route path="https://askmydocs-b8b7.onrender.com/chat/:docId" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
+          <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
+          <Route path="/chat/:docId" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
