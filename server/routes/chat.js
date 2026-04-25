@@ -103,7 +103,7 @@ RULES:
 
     try {
       const openai = getOpenAIClient()
-      const model  = process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free'
+      const model  = process.env.OPENROUTER_MODEL 
 
       console.log('Using model:', model)
 
