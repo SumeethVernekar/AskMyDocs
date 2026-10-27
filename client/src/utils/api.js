@@ -2,7 +2,7 @@ const SERVER = import.meta.env.VITE_API_URL || ''
 const BASE   = SERVER ? `${SERVER}/api` : '/api'
 
 export function wakeServer() {
-  fetch('https://askmydocs-ma48.onrender.com/api/health', {
+  fetch('https://askmydocs-b8b7.onrender.com/api/health', {
     method: 'GET',
   }).catch(() => {})
 }
