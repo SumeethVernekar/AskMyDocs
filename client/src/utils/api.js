@@ -1,6 +1,12 @@
 const SERVER = import.meta.env.VITE_API_URL || ''
 const BASE   = SERVER ? `${SERVER}/api` : '/api'
 
+export function wakeServer() {
+  fetch('https://askmydocs-ma48.onrender.com/api/health', {
+    method: 'GET',
+  }).catch(() => {})
+}
+
 // No more localStorage tokens — cookies are set automatically by browser
 async function request(path, options = {}) {
   try {
