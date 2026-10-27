@@ -7,12 +7,24 @@ export function AuthProvider({ children }) {
   const [user,    setUser]    = useState(null)
   const [loading, setLoading] = useState(true)
 
-  // On every page load/refresh — check if cookie session exists
   useEffect(() => {
+    // Add timeout — if server takes more than 5 seconds assume not logged in
+    const timeout = setTimeout(() => {
+      setLoading(false)
+    }, 5000)
+
     api.me()
-      .then(data => setUser(data.user))
+      .then(data => {
+        if (data?.user) setUser(data.user)
+        else setUser(null)
+      })
       .catch(() => setUser(null))
-      .finally(() => setLoading(false))
+      .finally(() => {
+        clearTimeout(timeout)
+        setLoading(false)
+      })
+
+    return () => clearTimeout(timeout)
   }, [])
 
   const login = async (email, password) => {
